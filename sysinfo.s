@@ -1,6 +1,10 @@
 | digihealth, SYSTEM INFO: the SETTINGS row and the readout, render and idle
 | timing, and the read-only USB diagnostics channel (tools/digiusb.py).
+        .ifdef  DN143                   | the Digitone mk1 1.43 (dn1/mod.json)
+        .include "dn143.inc"
+        .else                           | the Digitakt mk1 1.53
         .include "os153.inc"
+        .endif
 
         .equ TICKS_PER_S, 30            | the UI's compose check runs at 30 Hz
         .equ PAGE_S,      2             | seconds per readout page
@@ -288,11 +292,13 @@ stats:
         move.l  %d4, %d0
         bsr.w   to_tenths
         move.l  %d0, v_ram
+        .ifdef  SMPFREE                 | a sample engine: its free memory too
         | Free sample memory, from the OS's own count.
         jsr     SMPFREE
         move.l  %d0, stage+S_SMP
         bsr.w   to_tenths
         move.l  %d0, v_smp
+        .endif
 | FAST AUDIO's state (r_on, r_fault: fastaudio.s) goes into the snapshot's
 | flags; its watchdog is fastaudio.s's fa_tick.
 85:     | Publish the snapshot: diag_rx copies it with interrupts off too.
@@ -411,7 +417,9 @@ si_draw:
         jsr     TEXTF
         lea     36(%sp), %sp
         bra.w   7f
-2:      move.l  v_smp, %d0              | "RAM 15.1M  SMP 64.0M"
+2:
+        .ifdef  SMPFREE
+        move.l  v_smp, %d0              | "RAM 15.1M  SMP 64.0M"
         moveq   #10, %d1
         move.l  %d0, %d2
         divu.l  %d1, %d2                | whole MB
@@ -419,6 +427,7 @@ si_draw:
         sub.l   %d1, %d0                | tenths
         move.l  %d0, -(%sp)
         move.l  %d2, -(%sp)
+        .endif
         move.l  v_ram, %d0
         moveq   #10, %d1
         move.l  %d0, %d2
@@ -434,7 +443,11 @@ si_draw:
         pea     FONT5
         move.l  %a2, -(%sp)
         jsr     TEXTF
+        .ifdef  SMPFREE
         lea     40(%sp), %sp
+        .else
+        lea     32(%sp), %sp            | "RAM 15.1M": two arguments fewer
+        .endif
         bra.w   7f
 8:      pea     -1
         pea     TEXT_Y
@@ -498,7 +511,7 @@ hook_sysex:
         addq.l  #8, %sp
 9:      movem.l (%sp), %d1-%d2/%a0-%a1
         lea     16(%sp), %sp
-        lea     0x401b89aa, %a3         | the instruction this replaced
+        lea     SYSEX_A3, %a3           | the instruction this replaced
         rts
 
 | diag_rx(const u8 *body, u32 len): body is what lies between the 6-byte
@@ -684,7 +697,11 @@ row_info:   .long   item_label, item_select, item_draw, item_change
 diag_hdr:   .byte   0xF0, 0x00, 0x20, 0x3C, 0x7D, 0x00
 str_label:  .asciz  "SYSTEM INFO"
 fmt_cpu:    .asciz  "CPU %d%%  DSP %d%%/%d%%"
+        .ifdef  SMPFREE
 fmt_ram:    .asciz  "RAM %d.%dM  SMP %d.%dM"
+        .else
+fmt_ram:    .asciz  "RAM %d.%dM"
+        .endif
 fmt_na:     .asciz  "CPU --  DSP --"
         .balign 4
 

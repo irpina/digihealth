@@ -13,6 +13,9 @@ two rows to SETTINGS:
   A read-only USB diagnostics channel lets `tools/digiusb.py` read the same
   figures, and more, from a computer.
 
+On the **Digitone (mk1) and Digitone Keys**, OS 1.43, it is SYSTEM INFO
+alone (digihealth 1.1): see [The Digitone](#the-digitone).
+
 It is an [elekloader](https://github.com/irpina/elekloader) mod.
 elekloader builds a custom OS file on your own machine, from your stock OS
 file and the mods you pick; nothing from Elektron is distributed.
@@ -58,30 +61,51 @@ python tools/digiusb.py peek 0x4020bb14 64
 Elektron Transfer first: Windows lets one program at a time open a MIDI
 port.
 
+## The Digitone
+
+digihealth 1.1 is SYSTEM INFO for the Digitone mk1 and Digitone Keys, OS
+1.43: the same row, readout and USB channel, built from the same source
+with the Digitone's addresses (`dn1/`).
+
+- **CPU** is the main CPU's load, as on the Digitakt.
+- **DSP** is the main CPU's audio render: the effects and the mix. The FM
+  voices run on the Digitone's second CPU, which no mod changes, so their
+  load is not shown.
+- **The second page** is free RAM alone: the Digitone has no sample memory.
+- **FAST AUDIO** is not ported yet. The Digitone's render is different code,
+  and less of the SRAM is free.
+
+It needs the Digitone's core (`core-dn1-2.0a.elemod`), which elekloader 0.4.0
+builds in.
+
 ## Install
 
 You need three things:
 - **elekloader**:
-  - **Windows:** download `elekloader-<version>-windows.zip` from
-    [elekloader's releases](https://github.com/irpina/elekloader/releases/latest),
-    unzip it and run `elekloader.exe`. The core mod, which every linkable mod
-    needs, is built in.
+  - **Windows:** download `elekloader-<version>-windows.exe` from
+    [elekloader's releases](https://github.com/irpina/elekloader/releases/latest)
+    and run it. The core mod, which every linkable mod needs, is built in
+    (the Digitone's from elekloader 0.4.0).
   - **Other systems:** run elekloader from source with Python 3.9 or newer
     (see [its README](https://github.com/irpina/elekloader#install)). There
-    you also need `core-2.0a.elemod`, which is attached to this repository's
-    releases too.
-- **This mod:** `digihealth-1.0.elemod`, from
+    you also need the core for your device (`core-2.0a.elemod` for the
+    Digitakt, `core-dn1-2.0a.elemod` for the Digitone), attached to this
+    repository's releases too.
+- **This mod:** `digihealth-1.0.elemod` for the Digitakt mk1, or
+  `digihealth-1.1.elemod` for the Digitone mk1, from
   [this repository's releases](https://github.com/irpina/digihealth/releases/latest).
 - **The stock OS file:** `Digitakt_OS1.53.syx`, from
-  [Elektron's Digitakt downloads](https://www.elektron.se/support-downloads/digitakt).
-  The mod is for the Digitakt mk1 on OS 1.53 only; elekloader recognises
-  the file by its hash.
+  [Elektron's Digitakt downloads](https://www.elektron.se/support-downloads/digitakt),
+  or `Digitone_and_Digitone_Keys_OS1.43.syx`, from Elektron's Digitone
+  downloads (the `.zip` works as it is). elekloader recognises the file by
+  its hash.
 
 Then build your OS in elekloader's window:
 
-1. **Change stock firmware...** (top right): choose `Digitakt_OS1.53.syx`.
-2. **+ Install from file...**: choose `digihealth-1.0.elemod`. From source,
-   install `core-2.0a.elemod` the same way.
+1. **Your stock OS file:** elekloader asks for it the first time; **Change
+   stock firmware...** (top right) picks another.
+2. **+ Install from file...**: choose the digihealth for your device. From
+   source, install its core the same way.
 3. **Tick digihealth.** core is ticked with it. The check below the list should
    say "No conflicts ... Ready to build". To add other mods, such as [digislicer](https://github.com/irpina/digislicer), install and tick them as well.
 4. **OS version shown**: the 4 characters the unit will show, for example
@@ -120,6 +144,7 @@ Windows, inside WSL) and elekloader, importable (installed, or on
 
 ```bash
 python build.py --stock Digitakt_OS1.53.syx      # -> out/digihealth-1.0.elemod
+python build.py --stock Digitone_and_Digitone_Keys_OS1.43.syx   # -> out/digihealth-1.1.elemod
 python -m elekloader.lint out/digihealth-1.0.elemod --stock Digitakt_OS1.53.syx --with core-2.0a.elemod
 ```
 
@@ -139,6 +164,7 @@ them to elekloader's SDK.
 | `fastaudio.s` | the FAST AUDIO row, the copy, the stubs' switch and the watchdog |
 | `sysinfo.s` | the SYSTEM INFO row and readout, the render and idle timing, the USB channel |
 | `os153.inc` | the stock routines it calls |
+| `dn1/mod.json`, `dn1/dn143.inc` | the Digitone mk1's mod (SYSTEM INFO; `sysinfo.s` with `DN143`) and its stock routines |
 | `tools/digiusb.py`, `tools/winmidi.py` | the USB channel's other end |
 
 ## How it was checked
@@ -161,6 +187,19 @@ mods through the real bootloader.
 - **On a unit:** FAST AUDIO and SYSTEM INFO ran on a Digitakt mk1 in the
   custom builds this mod comes from, where the figures above were
   measured.
+- **The Digitone** (digihealth 1.1 with its core): every stage of digikit's
+  firmware check passes, from the file's own bootstrap and updater to a
+  scripted session, against stock.
+  - With SYSTEM INFO off, every screen is identical to stock.
+  - Switched on in SETTINGS, the readout shows "CPU 58%  DSP 54%/54%" and
+    "RAM 13.8M" in the top bar. The emulator's own measurement of stock is
+    58 % CPU.
+  - The audio is identical to stock until PLAY, then the same sound, shifted
+    by when the key press lands. Stock against itself with PLAY 0.3 ms later
+    differs in the same way.
+  - Its routines and sites are the Digitakt 1.53's found again in 1.43: the
+    same code, instruction for instruction, but for its addresses.
+  - Not yet on a unit, and the USB channel not yet tried.
 
 ## Licence
 

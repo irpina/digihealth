@@ -1,0 +1,72 @@
+{
+ "id": "digihealth",
+ "version": "1.1",
+ "title": "digihealth",
+ "category": "Performance",
+ "author": "irpina",
+ "license": "GPL-2.0-or-later",
+ "description": "A SETTINGS row, SYSTEM INFO: CPU load, the audio render's load (DSP: the main CPU's effects and mix; the FM voices run on the second CPU) and free RAM in the top bar, and a read-only USB diagnostics channel (SysEx device 0x7D) that answers tools/digiusb.py. For the Digitone mk1 and Digitone Keys; FAST AUDIO is Digitakt only.",
+ "device": "digitone-mk1",
+ "os": "1.43",
+ "sources": [
+  "../sysinfo.s"
+ ],
+ "defsym": {
+  "DN143": 1
+ },
+ "name_string": "digihealth",
+ "sites": [
+  {
+   "addr": "0x40000438",
+   "stock": "203cffffdfff",
+   "op": "jsr",
+   "target": "task_switch"
+  },
+  {
+   "addr": "0x400ea880",
+   "stock": "47f9401cde1a",
+   "op": "jsr",
+   "target": "hook_sysex"
+  }
+ ],
+ "subscribe": [
+  {
+   "event": "ev_settings",
+   "fn": "si_settings",
+   "order": 10
+  },
+  {
+   "event": "ev_tick",
+   "fn": "si_tick",
+   "order": 50
+  },
+  {
+   "event": "ev_draw",
+   "fn": "si_draw",
+   "order": 50
+  },
+  {
+   "event": "ev_render_in",
+   "fn": "si_render_in",
+   "order": 50
+  },
+  {
+   "event": "ev_render_out",
+   "fn": "si_render_out",
+   "order": 50
+  }
+ ],
+ "weak": [
+  "r_on",
+  "r_fault"
+ ],
+ "requires": [
+  "core"
+ ],
+ "resources": {
+  "names": [
+   "settings:SYSTEM INFO",
+   "sysex:0x7d"
+  ]
+ }
+}
