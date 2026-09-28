@@ -26,3 +26,4 @@
         .equ IDLE_TCB,    0x4198497C    | the idle task (the init task, parked)
         .equ IDLE_PC,     0x4006932E    | where it spins: bra.b *
         .equ VBR_FN,      0x40001c94    | the call 0x40000538 made
+        .equ SYSEX_A3,    0x401b89aa    | the SysEx router's table (the lea hook_sysex replaces)

@@ -1,6 +1,10 @@
-"""Build digihealth's .elemod.
+"""Build digihealth's .elemod for the device your stock file is for.
 
     python build.py --stock Digitakt_OS1.53.syx [--out DIR]
+    python build.py --stock Digitone_and_Digitone_Keys_OS1.43.syx [--out DIR]
+
+On the Digitone mk1 it is SYSTEM INFO alone (dn1/mod.json), which the SDK
+builds as it is: FAST AUDIO, below, is the Digitakt mk1's.
 
 FAST AUDIO needs parts that depend on the stock code it copies: the block's
 checks, its fix-ups (the copy's references to itself, pointed at the copy)
@@ -127,6 +131,12 @@ def main(argv=None):
     try:
         stock = syx.Syx.load(a.stock)
         dev, _rel = devices.identify(stock.sha256)
+        if dev.key == 'digitone-mk1':
+            path, m = sdk.build(os.path.join(HERE, 'dn1'), a.stock, out)
+            print('BUILT %s' % path)
+            print('  %s: .run %d, .bss %d bytes; %d sites, %d relocations; SYSTEM INFO only'
+                  % (m.label(), m.size('.run'), m.size('.bss'), len(m.sites), len(m.relocs)))
+            return 0
         image = stock.section(dev.main_section)
         extra, nfix, nstub = generate(cf, mod, image, dev.main_load, work)
         path, m = sdk.build(HERE, a.stock, out, extra)
