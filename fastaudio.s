@@ -1,3 +1,4 @@
+| SPDX-License-Identifier: GPL-2.0-or-later
 | digihealth, FAST AUDIO: the SETTINGS row, the render block run from SRAM,
 | and its watchdog. Its tables are the linker's: fa_copies (the block, then
 | every mod's .fast) and fa_fixups (the block's own references); build.py

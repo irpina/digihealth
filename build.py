@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Build digihealth's .elemod for the device your stock file is for.
 
     python build.py --stock Digitakt_OS1.53.syx [--out DIR]

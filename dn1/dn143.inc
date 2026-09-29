@@ -1,3 +1,4 @@
+| SPDX-License-Identifier: GPL-2.0-or-later
 | Digitone mk1 MAIN OS 1.43: stock routines and data SYSTEM INFO calls or reads.
 | Each is the Digitakt mk1 1.53 one (os153.inc) found again in 1.43: the
 | routines by their code, which is the same instruction for instruction but
