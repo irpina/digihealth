@@ -1,6 +1,7 @@
 {
  "id": "digihealth", "version": "1.0",
  "title": "digihealth", "category": "Performance", "author": "irpina",
+ "license": "GPL-2.0-or-later",
  "description": "Two SETTINGS rows. FAST AUDIO (on by default) runs the audio render's hot code from the free on-chip SRAM: the same code, so the audio is identical and the DSP load lower; a watchdog goes back to the stock code if the copy is ever overwritten. SYSTEM INFO shows CPU, DSP, RAM and free sample memory in the top bar, and a read-only USB diagnostics channel (SysEx device 0x7D) answers tools/digiusb.py.",
  "device": "digitakt-mk1", "os": "1.53",
  "sources": ["fastaudio.s", "sysinfo.s"],

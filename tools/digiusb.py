@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 """Read digihealth's diagnostics from a Digitakt mk1 over USB MIDI.
 
     python digiusb.py cfw                  which mod answers, and its uptime

@@ -1,3 +1,4 @@
+| SPDX-License-Identifier: GPL-2.0-or-later
 | digihealth, SYSTEM INFO: the SETTINGS row and the readout, render and idle
 | timing, and the read-only USB diagnostics channel (tools/digiusb.py).
         .ifdef  DN143                   | the Digitone mk1 1.43 (dn1/mod.json)

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 """A tiny SysEx client over the Windows MIDI API (winmm, through ctypes: no
 packages). Opens the Digitakt's USB MIDI ports, sends one SysEx message and
 collects whatever SysEx comes back for a while."""
