@@ -13,8 +13,8 @@ two rows to SETTINGS:
   A read-only USB diagnostics channel lets `tools/digiusb.py` read the same
   figures, and more, from a computer.
 
-On the **Digitone (mk1) and Digitone Keys**, OS 1.43, it is SYSTEM INFO
-alone (digihealth 1.1): see [The Digitone](#the-digitone).
+On the **Digitone (mk1) and Digitone Keys**, OS 1.43 and 1.44, it is
+SYSTEM INFO alone (digihealth 1.1): see [The Digitone](#the-digitone).
 
 It is an [elekloader](https://github.com/irpina/elekloader) mod.
 elekloader builds a custom OS file on your own machine, from your stock OS
@@ -64,8 +64,8 @@ port.
 ## The Digitone
 
 digihealth 1.1 is SYSTEM INFO for the Digitone mk1 and Digitone Keys, OS
-1.43: the same row, readout and USB channel, built from the same source
-with the Digitone's addresses (`dn1/`).
+1.43 and 1.44: the same row, readout and USB channel, built from the same
+source with the Digitone's addresses (`dn1/`; 1.44's are `dn1/dn144.inc`).
 
 - **CPU** is the main CPU's load, as on the Digitakt.
 - **DSP** is the main CPU's audio render: the effects and the mix. The FM
@@ -96,10 +96,11 @@ You need three things:
   [this repository's releases](https://github.com/irpina/digihealth/releases/latest):
   `digihealth-1.0.elemod` for the Digitakt mk1 on OS 1.53,
   `digihealth-1.0-os1.54.elemod` on OS 1.54 (the same mod), or
-  `digihealth-1.1.elemod` for the Digitone mk1.
+  `digihealth-1.1.elemod` for the Digitone mk1 on OS 1.43,
+  `digihealth-1.1-os1.44.elemod` on OS 1.44.
 - **The stock OS file:** `Digitakt_OS1.54.syx` or `Digitakt_OS1.53.syx`, from
   [Elektron's Digitakt downloads](https://www.elektron.se/support-downloads/digitakt),
-  or `Digitone_and_Digitone_Keys_OS1.43.syx`, from Elektron's Digitone
+  or `Digitone_and_Digitone_Keys_OS1.44.syx` (or 1.43), from Elektron's Digitone
   downloads (the `.zip` works as it is). elekloader recognises the file by
   its hash.
 
@@ -149,6 +150,7 @@ Windows, inside WSL) and elekloader, importable (installed, or on
 python build.py --stock Digitakt_OS1.53.syx      # -> out/digihealth-1.0.elemod
 python build.py --stock Digitakt_OS1.54.syx      # -> out/digihealth-1.0-os1.54.elemod
 python build.py --stock Digitone_and_Digitone_Keys_OS1.43.syx   # -> out/digihealth-1.1.elemod
+python build.py --stock Digitone_and_Digitone_Keys_OS1.44.syx   # -> out/digihealth-1.1-os1.44.elemod
 python -m elekloader.lint out/digihealth-1.0.elemod --stock Digitakt_OS1.53.syx --with core-2.0a.elemod
 ```
 
@@ -169,7 +171,7 @@ them to elekloader's SDK.
 | `fastaudio.s` | the FAST AUDIO row, the copy, the stubs' switch and the watchdog |
 | `sysinfo.s` | the SYSTEM INFO row and readout, the render and idle timing, the USB channel |
 | `os153.inc`, `os154.inc` | the stock routines it calls, for each OS (1.54's port defines `OS154`) |
-| `dn1/mod.json`, `dn1/dn143.inc` | the Digitone mk1's mod (SYSTEM INFO; `sysinfo.s` with `DN143`) and its stock routines |
+| `dn1/mod.json`, `dn1/dn143.inc`, `dn1/dn144.inc` | the Digitone mk1's mod (SYSTEM INFO; `sysinfo.s` with `DN143`, and `DN144` in its 1.44 port) and its stock routines for each OS |
 | `tools/digiusb.py`, `tools/winmidi.py` | the USB channel's other end |
 
 ## How it was checked
@@ -204,6 +206,15 @@ mods through the real bootloader.
     differs in the same way.
   - Its routines and sites are the Digitakt 1.53's found again in 1.43: the
     same code, instruction for instruction, but for its addresses.
+  - **OS 1.44** (the same mod, with 1.44's addresses, `dn1/dn144.inc`):
+    each routine found again in 1.44 by its code (most 0x274 further on),
+    each piece of data through the code that reads it. With core-dn1 3.2,
+    every stage of the firmware check passes against stock 1.44 and every
+    screen is identical; the 1.43 build's code is unchanged. In a timed
+    session SYSTEM INFO on reads the same on 1.44 as on 1.43 (CPU 13% and
+    14%, DSP 11% and 12% with a 59% peak, RAM 13.8M), its hooks run as
+    often, and a diagnostics request (HELLO, marked as from USB) reaches
+    the SysEx hook and is answered through the stock sender.
   - Not yet on a unit, and the USB channel not yet tried.
 - **The Digitakt mk1 on OS 1.54** (the same mod, with 1.54's
   addresses), in the emulator:
