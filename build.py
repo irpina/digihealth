@@ -135,7 +135,7 @@ def main(argv=None):
         if dev.key == 'digitone-mk1':
             path, m = sdk.build(os.path.join(HERE, 'dn1'), a.stock, out)
             print('BUILT %s' % path)
-            print('  %s: .run %d, .bss %d bytes; %d sites, %d relocations; SYSTEM INFO only'
+            print('  %s: .run %d, .bss %d bytes; %d sites, %d relocations; SYSTEM INFO'
                   % (m.label(), m.size('.run'), m.size('.bss'), len(m.sites), len(m.relocs)))
             return 0
         mod, _ported = sdk.for_release(mod, dev, rel)    # this OS's "ports" entry, if any

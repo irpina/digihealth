@@ -1,0 +1,9 @@
+{
+ "id": "key-observer", "version": "0.1",
+ "license": "GPL-2.0-or-later",
+ "title": "Key observer", "category": "Examples",
+ "description": "Emulator-only key event capture and optional consumption.",
+ "sources": ["observer.c"],
+ "subscribe": [{"event": "ev_key", "fn": "key_observe", "order": 5}],
+ "requires": ["core"]
+}

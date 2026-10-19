@@ -72,7 +72,15 @@
  "ports": {
   "1.44": {
    "defsym": {
-    "DN144": 1
+    "DN144": 1,
+    "DN143": 1,
+    "RK_KEYS": 1,
+    "KEY_CONTINUE": "0x400e8d44",
+    "KEY_STACK": 76,
+    "KEY_STATE": "0x41973dd0",
+    "UI_QUEUE": "0x4052b6bc",
+    "KEY_CLOCK": "0xfc07000c",
+    "KEY_VARIANT": "0x402296f0"
    },
    "sites": [
     {
@@ -86,8 +94,58 @@
      "stock": "47f9401ce1ea",
      "op": "jsr",
      "target": "hook_sysex"
+    },
+    {
+     "addr": "0x400e8d3c",
+     "stock": "4fefffb448d77cfc",
+     "op": "jmp",
+     "target": "core_panel_buttons"
     }
-   ]
+   ],
+   "sources": [
+    "../sysinfo.s",
+    "../core_candidate.c",
+    "../core_candidate.s",
+    "../remote_keys.c",
+    "../remote_keys.s"
+   ],
+   "cflags": [
+    "-DRK_OS_MINOR=44",
+    "-DRK_PRODUCT=2"
+   ],
+   "subscribe": [
+    {
+     "event": "ev_settings",
+     "fn": "si_settings",
+     "order": 10
+    },
+    {
+     "event": "ev_tick",
+     "fn": "si_tick",
+     "order": 50
+    },
+    {
+     "event": "ev_draw",
+     "fn": "si_draw",
+     "order": 50
+    },
+    {
+     "event": "ev_render_in",
+     "fn": "si_render_in",
+     "order": 50
+    },
+    {
+     "event": "ev_render_out",
+     "fn": "si_render_out",
+     "order": 50
+    },
+    {
+     "event": "ev_tick",
+     "fn": "rk_tick",
+     "order": 60
+    }
+   ],
+   "description": "A SETTINGS row, SYSTEM INFO: CPU load, main CPU render load and free RAM, plus USB diagnostics. On desktop Digitone mk1 OS 1.44 the same USB channel also supports bounded button commands through tools/digiusb.py. Digitone Keys retains diagnostics; its additional panel variant is refused by the button helper. FAST AUDIO is Digitakt only."
   }
  }
 }

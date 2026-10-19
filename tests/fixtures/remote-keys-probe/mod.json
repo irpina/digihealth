@@ -1,0 +1,25 @@
+{
+ "id": "remote-keys-probe", "version": "0.1",
+ "license": "GPL-2.0-or-later",
+ "title": "Remote keys probe", "category": "Examples",
+ "description": "An experimental input bridge for emulator tests; no USB receiver or automatic key actions.",
+ "device": "digitakt-mk1", "os": "1.53",
+ "sources": ["../../../core_candidate.c", "../../../core_candidate.s", "probe.c"],
+ "defsym": {
+  "KEY_CONTINUE": "0x400d38d0",
+  "KEY_STATE": "0x4217bbf0",
+  "UI_QUEUE": "0x4060fc28"
+ },
+ "sites": [{"addr": "0x400d38c8", "stock": "4fefffbc48d77cfc", "op": "jmp", "target": "core_panel_buttons"}],
+ "ports": {
+  "1.54": {
+   "defsym": {"KEY_CONTINUE": "0x400d3af8", "KEY_STATE": "0x4217cbf0", "UI_QUEUE": "0x40610c28"},
+   "sites": [{"addr": "0x400d3af0", "stock": "4fefffbc48d77cfc", "op": "jmp", "target": "core_panel_buttons"}]
+  }
+ },
+ "subscribe": [
+  {"event": "ev_tick", "fn": "rk_tick", "order": 60},
+  {"event": "ev_key", "fn": "rk_key", "order": 60}
+ ],
+ "requires": ["core"]
+}

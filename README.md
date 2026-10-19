@@ -47,7 +47,7 @@ misses a block. The SRAM answers without wait states.
   - free RAM (the heap) and free sample memory.
 - **The USB channel** is SysEx with Elektron's manufacturer header and a
   device byte (0x7D) that no Elektron machine uses, so a stock OS ignores
-  it. It has three commands, all read-only: HELLO, STATS (the once-a-second
+  it. Its diagnostics commands are read-only: HELLO, STATS (the once-a-second
   snapshot: render and idle time, the heap by block size, free sample
   memory, FAST AUDIO's state) and PEEK (DDR and the SRAM only).
 
@@ -57,9 +57,85 @@ python tools/digiusb.py stats 10     # ten readings, one a second
 python tools/digiusb.py peek 0x4020bb14 64
 ```
 
-`digiusb.py` runs on Windows (winmm, through ctypes; no packages). Close
-Elektron Transfer first: Windows lets one program at a time open a MIDI
-port.
+`digiusb.py` runs on Windows (winmm, through ctypes; no packages) and on
+macOS/Linux (Mido + python-rtmidi). Close Elektron Transfer first on Windows,
+which lets one program at a time open a MIDI port. The client expects one
+Digitakt or Digitone MIDI input and output; it refuses ambiguous matches.
+
+On macOS, from a source checkout with mise and uv installed:
+
+```bash
+mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py stats 10
+```
+
+## Remote keys (source build)
+
+This branch supports all 48 Digitakt mk1 buttons on OS 1.53/1.54 and all
+54 desktop Digitone mk1 buttons on OS 1.44, including encoder pushes.
+Shared names such as `YES`, `SETTINGS`, `1` and `LEVEL_PUSH` use a device-specific
+map. Device-only names such as `SRC`, `SYN1` and `T1` are refused on devices
+that lack them. See [the complete button map](docs/BUTTONS.md).
+
+Build and install the mod from this source before using it; the linked
+upstream releases do not contain this helper. Key protocol revision 2 is
+required; older clients/helpers refuse the capability mismatch before acting.
+Digitone OS 1.43 retains diagnostics only until its input bridge can be
+verified against that stock file. Digitone Keys extra controls are outside
+this map; the helper refuses that panel variant.
+
+For example, on Digitakt hold FUNC while tapping SRC:
+
+```bash
+mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py keys 'FUNC(SRC)'
+```
+
+Use a bare name such as `keys YES` to tap alone. `--tap-ms` defaults to 100
+(maximum 250), and `--hold-ms` defaults to 2000 (maximum 2000).
+The client checks capabilities,
+opens a session, presses the held key, taps the other, releases and cancels.
+Firmware knows individual keys; the computer composes the gesture. A hold
+and tap may span different panel groups. To tap Settings on either device,
+use `keys SETTINGS`; `keys 'FUNC(LEVEL_PUSH)'` opens its Sound Browser.
+Numbered keys use the strings `1` through `16`. Encoder pushes use `A_PUSH`
+through `H_PUSH`; rotations are outside the button helper.
+
+Run multiple steps in one session with a comma-separated input:
+
+```bash
+mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py keys 'FUNC(SRC),DOWN,DOWN,DOWN,YES'
+```
+
+Commas separate steps. A bare name taps that button; `FUNC(SRC)` holds FUNC,
+taps SRC, then releases FUNC before the next step. Quote the sequence so the
+shell preserves parentheses. Spaces around steps and parentheses are allowed.
+All names and device support are checked before any key action. Each step
+waits for completion; an error stops the sequence and triggers cleanup.
+`--tap-ms` and `--hold-ms` apply to each step, with the same defaults and limits
+as a single gesture. The hold limit is a safety lease, not an extra delay.
+The required input accepts `KEY`, `HOLD(TAP)`, or a comma-separated list of
+either. Nested holds and multiple taps inside parentheses are unsupported.
+Completion confirms button-driver transitions; the script does not check
+that the expected menu is open.
+
+Python callers can reuse any port implementing `send`, `receive` and `close`:
+
+```python
+from digiusb import Diag, RemoteKeys  # tools/ on the import path
+
+with RemoteKeys(Diag(port)) as keys:
+    keys.press('FUNC')
+    keys.tap('LEVEL_PUSH')
+    keys.release('FUNC')
+```
+
+One client and one action at a time are supported. Lost action replies are
+resolved with status queries, never automatic replay. Use the context manager
+to cancel on exceptions. A disconnected client's holds expire, and cleanup
+preserves physical keys. Releases can wait for room in the firmware queue;
+deadlines are serviced by the UI task, so a stalled UI delays cleanup. A UI
+stall longer than the counter's roughly 32-second wrap can delay it further.
+Completion means the stock driver accepted the transition, not that a menu
+opened. See [the protocol reference](docs/REMOTE-KEYS.md).
 
 ## The Digitone
 
@@ -172,11 +248,35 @@ them to elekloader's SDK.
 | `sysinfo.s` | the SYSTEM INFO row and readout, the render and idle timing, the USB channel |
 | `os153.inc`, `os154.inc` | the stock routines it calls, for each OS (1.54's port defines `OS154`) |
 | `dn1/mod.json`, `dn1/dn143.inc`, `dn1/dn144.inc` | the Digitone mk1's mod (SYSTEM INFO; `sysinfo.s` with `DN143`, and `DN144` in its 1.44 port) and its stock routines for each OS |
-| `tools/digiusb.py`, `tools/winmidi.py` | the USB channel's other end |
+| `core_candidate.c`, `core_candidate.s`, `core_candidate.h` | physical/synthetic input bridge, private to this mod |
+| `remote_keys.c`, `remote_keys.s`, `remote_keys.h` | bounded key mailbox, UI tick and clock |
+| `keys.def`, `tools/keymap.py` | shared logical names and device-specific button maps |
+| `tools/digiusb.py`, `tools/winmidi.py`, `tools/midimido.py` | diagnostics/key client and MIDI transports |
 
 ## How it was checked
 
-These checks ran in digikit's emulator, which runs the stock OS and the
+For the source-build key helper, run the host checks without a MIDI device:
+
+```bash
+mise exec python@3.12 -- python tests/test_usb_keys.py
+mise exec python@3.12 -- python tests/test_all_keys.py
+mise exec python@3.12 -- python tools/digiusb.py selftest
+```
+
+`tests/test_remote_keys.py` checks the input bridge, and
+`tests/test_usb_firmware.py` checks the complete compiled mod on OS 1.53
+and 1.54, plus Digitone 1.44. Their module docstrings list the stock-file,
+Elekloader and emulator environment variables. Missing firmware prerequisites
+are reported as skipped.
+The full helper tests cover every mapped firmware key ID, cross-group
+ownership, machine-list/Sound Browser screens, unchanged diagnostic
+replies, USB/DIN source gating, physical ownership, malformed requests,
+lost action replies and deadline cleanup. The emulator calls the router hook
+and captures the stock sender; it does not model USB endpoints. Remote keys
+have not been tested on a physical device.
+
+The original performance and diagnostics checks below ran in digikit's emulator,
+which runs the stock OS and the
 mods through the real bootloader.
 
 - **Bit-exact audio:** with FAST AUDIO on, every output sample and the audio

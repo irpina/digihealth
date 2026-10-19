@@ -1,6 +1,6 @@
 | SPDX-License-Identifier: GPL-2.0-or-later
 | digihealth, SYSTEM INFO: the SETTINGS row and the readout, render and idle
-| timing, and the read-only USB diagnostics channel (tools/digiusb.py).
+| timing, and the USB diagnostics channel (tools/digiusb.py).
         .ifdef  DN144                   | the Digitone mk1 1.44 (dn1/mod.json's port; DN143 is set too)
         .include "dn144.inc"
         .else
@@ -472,7 +472,8 @@ si_draw:
 | ---- the USB diagnostics channel ------------------------------------------
 | F0 00 20 3C 7D 00 <pack7: u16 seq, u8 cmd, args> F7, answered with
 | F0 00 20 3C 7D 00 <pack7: u16 seq, u8 cmd|0x80, u8 status, payload> F7
-| over USB. Every command only reads. tools/digiusb.py is the other end.
+| over USB. Diagnostics only read; the Digitakt also queues bounded key actions.
+| tools/digiusb.py is the other end.
         .equ DIAG_PROTO,  1
         .equ C_HELLO,     1             | -> u16 channel version, u32 seconds, name
         .equ C_STATS,     2             | -> the snapshot
@@ -531,6 +532,20 @@ diag_rx:
         movem.l %d2-%d5/%a2, (%sp)
         movea.l 24(%sp), %a0
         move.l  28(%sp), %d0
+        .ifdef RK_KEYS
+        pea     rp
+        move.l  %d0, -(%sp)
+        move.l  %a0, -(%sp)
+        jsr     rk_receive
+        lea     12(%sp), %sp
+        tst.l   %d0
+        beq.s   90f
+        lea     rp, %a2
+        lea     0(%a2,%d0.l), %a1
+        bra.w   8f
+90:     movea.l 24(%sp), %a0
+        move.l  28(%sp), %d0
+        .endif
         lea     rq+1, %a1               | seq at rq+1 puts the PEEK args aligned
         moveq   #RQ_MAX, %d1
         bsr.w   unpack7

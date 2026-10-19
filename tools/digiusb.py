@@ -1,33 +1,45 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Read digihealth's diagnostics from a Digitakt mk1 over USB MIDI.
+"""Read digihealth diagnostics or operate bounded Digitakt/Digitone mk1 keys over USB MIDI.
 
     python digiusb.py cfw                  which mod answers, and its uptime
     python digiusb.py stats [N]            CPU, DSP, clock, heap: N readings, one a second
     python digiusb.py peek ADDR [LEN]      hex dump of DDR or the SRAM (0x8000xxxx)
     python digiusb.py dump ADDR LEN OUT    DDR to a file
     python digiusb.py selftest             check the encoder and decoder, no device
+    python digiusb.py keys YES
+    python digiusb.py keys 'FUNC(SRC)'
+    python digiusb.py keys 'FUNC(SRC),DOWN,DOWN,DOWN,YES'
 
 digihealth answers its own SysEx channel: Elektron's manufacturer header
 with a device byte (0x7D) no Elektron machine uses, so a stock OS drops the
-messages and talking to it does nothing. Every command only reads; the mod
-has no command that writes.
+messages and talking to it does nothing. Diagnostics only read. The optional
+key helper supports bounded individual key actions after capability detection.
 
     request  F0 00 20 3C 7D 00 <pack7: u16 seq, u8 cmd, payload> F7
     reply    F0 00 20 3C 7D 00 <pack7: u16 seq, u8 cmd | 0x80, u8 status,
                                 payload> F7
 
 Integers are big-endian. status 0 is ok, 1 an argument the mod refuses, 2 an
-unknown command. Windows only (winmidi.py, through ctypes: no packages).
+unknown command. Windows uses winmidi.py (ctypes: no packages); macOS/Linux
+use Mido + python-rtmidi (midimido.py).
 Windows lets one program at a time open a MIDI port: close Elektron
 Transfer first.
 """
+import argparse
+import re
+import secrets
 import struct
 import sys
 import time
+from keymap import KEYS, MAPS, SUPPORTED
 
 HEADER = bytes([0xF0, 0x00, 0x20, 0x3C, 0x7D, 0x00])
 HELLO, STATS, PEEK = 0x01, 0x02, 0x03
-STATUS = {0: 'ok', 1: 'refused', 2: 'unknown command'}
+STATUS = {0: 'ok', 1: 'refused', 2: 'unknown command', 3: 'busy',
+          4: 'stale session or operation', 5: 'physical overlap'}
+CAPS, OPEN, ACTION, KEY_STATUS, CANCEL = range(0x10, 0x15)
+PRESS, RELEASE, TAP = 1, 2, 3
+KEY_STATES = ('none', 'accepted', 'completed', 'cancelled', 'expired', 'failed')
 PEEK_MAX = 1024
 # PEEK reads DDR (cached view) and the 64 KB SRAM, and never the peripheral
 # space (a read there can clear a status bit).
@@ -77,6 +89,26 @@ def req_hello(seq):
 
 def req_stats(seq):
     return request(seq, STATS)
+
+
+def req_caps(seq):
+    return request(seq, CAPS)
+
+
+def req_open(seq, session):
+    return request(seq, OPEN, struct.pack('>I', session))
+
+
+def req_action(seq, session, operation, action, key, duration):
+    return request(seq, ACTION, struct.pack('>IIBBH', session, operation, action, key, duration))
+
+
+def req_key_status(seq, session, operation):
+    return request(seq, KEY_STATUS, struct.pack('>II', session, operation))
+
+
+def req_cancel(seq, session):
+    return request(seq, CANCEL, struct.pack('>I', session))
 
 
 def req_peek(seq, addr, length):
@@ -136,16 +168,23 @@ def decode_peek(p):
     return {'addr': addr, 'data': p[4:]}
 
 
+class _RequestRefused(ValueError):
+    pass
+
+
 class Diag:
-    """The channel, over a winmidi Port. A stock OS never answers."""
+    """The channel, over a send/receive Port. A stock OS never answers."""
 
     def __init__(self, port):
         self.port = port
         self.seq = 0x200
 
     def call(self, builder, *args, timeout=2.0, tries=2):
-        """Every command only reads, so a lost request or reply (seen now and
-        then on the first message after the port opens) is asked again."""
+        """Only known reads may be retried; actions need explicit status recovery."""
+        if builder not in (req_hello, req_stats, req_peek, req_caps, req_key_status):
+            tries = 1
+        if tries < 1:
+            raise ValueError('tries must be positive')
         for attempt in range(tries):
             try:
                 return self._call(builder, *args, timeout=timeout)
@@ -164,16 +203,153 @@ class Diag:
         def answered(msgs):
             for m in msgs[len(found):]:
                 r = parse(m)
+                if CAPS <= cmd <= CANCEL and bytes(m) != HEADER + pack7(unpack7(bytes(m)[6:-1])) + b'\xf7':
+                    r = None
                 found.append(r if r and r['seq'] == seq and r['cmd'] == cmd | 0x80 else None)
             return any(found)
         self.port.receive(timeout, until=answered)
         for r in found:
             if r:
                 if r['status']:
-                    raise ValueError('the mod refused 0x%02x: %s'
-                                     % (cmd, STATUS.get(r['status'], r['status'])))
+                    raise _RequestRefused('the mod refused 0x%02x: %s'
+                                          % (cmd, STATUS.get(r['status'], r['status'])))
                 return r['payload']
         raise TimeoutError('no answer: is a firmware with digihealth installed?')
+
+
+class RemoteKeys:
+    """One bounded session. A timeout queries status and never replays an action."""
+
+    def __init__(self, diag):
+        self.diag = diag
+        payload = diag.call(req_caps)
+        if len(payload) != 19:
+            raise ValueError('invalid key capabilities')
+        revision, product, major, minor, keys, default, tap, hold = struct.unpack('>HBBBQHHH', payload)
+        if (revision != 2 or (product, major, minor) not in ((1, 1, 53), (1, 1, 54), (2, 1, 44))
+                or keys != SUPPORTED.get(product) or not 1 <= default <= tap <= 250
+                or not 1 <= hold <= 2000):
+            raise ValueError('unsupported key helper, device, OS or limits')
+        self.default_tap, self.max_tap, self.max_hold = default, tap, hold
+        self.product, self.supported = product, keys
+        self.session = secrets.randbits(32) or 1
+        self.operation = 0
+        self._report(diag.call(req_open, self.session, timeout=0.25), 0)
+
+    def _report(self, payload, operation):
+        if len(payload) != 19:
+            raise ValueError('invalid key status length')
+        owner, number, state, reason, owned, cleanup = struct.unpack('>IIBBQB', payload)
+        if (owner != self.session or (operation and number != operation)
+                or state >= len(KEY_STATES) or reason not in STATUS
+                or owned & ~self.supported or cleanup > 1):
+            raise ValueError('invalid or mismatched key status')
+        return dict(operation=number, state=KEY_STATES[state], reason=STATUS[reason],
+                    owned=owned, cleanup=cleanup)
+
+    def status(self, operation=None):
+        operation = self.operation if operation is None else operation
+        return self._report(self.diag.call(req_key_status, self.session, operation,
+                                          timeout=0.25), operation)
+
+    def _wait(self, report, cancelling=False):
+        deadline = time.monotonic() + 3
+        while report['state'] == 'accepted' or report['cleanup']:
+            if time.monotonic() >= deadline:
+                raise TimeoutError('key cleanup or action still pending; not replayed')
+            time.sleep(0.01)
+            report = self.status(0 if cancelling else None)
+        if cancelling:
+            if report['owned']:
+                raise TimeoutError('cleanup unconfirmed; firmware hold lease remains in force')
+        elif report['state'] != 'completed':
+            raise RuntimeError('key action %s: %s' % (report['state'], report['reason']))
+        return report
+
+    def action(self, action, key, duration=0):
+        if key not in MAPS[self.product] or action not in (PRESS, RELEASE, TAP):
+            raise ValueError('unsupported key or action')
+        limit = self.max_hold if action == PRESS else self.max_tap
+        if action == RELEASE and duration != 0 or action != RELEASE and not 1 <= duration <= limit:
+            raise ValueError('invalid key duration')
+        self.operation += 1
+        try:
+            payload = self.diag.call(req_action, self.session, self.operation, action,
+                                     KEYS[key], duration, timeout=0.25)
+            report = self._report(payload, self.operation)
+        except _RequestRefused:
+            self.operation -= 1
+            raise
+        except TimeoutError:
+            report = self.status()
+        return self._wait(report)
+
+    def press(self, key, duration=None):
+        return self.action(PRESS, key, self.max_hold if duration is None else duration)
+
+    def release(self, key):
+        return self.action(RELEASE, key)
+
+    def tap(self, key, duration=None):
+        return self.action(TAP, key, self.default_tap if duration is None else duration)
+
+    def cancel(self):
+        try:
+            report = self._report(self.diag.call(req_cancel, self.session, timeout=0.25), 0)
+        except TimeoutError:
+            report = self.status(0)
+            if report['state'] not in ('cancelled', 'expired') and not report['cleanup']:
+                raise TimeoutError('cancel delivery unknown; not replayed, hold lease remains in force')
+        return self._wait(report, cancelling=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.cancel()
+
+
+def key_sequence(text):
+    steps = []
+    for token in text.split(','):
+        match = re.fullmatch(r'([A-Z0-9_]+)(?:\s*\(\s*([A-Z0-9_]+)\s*\))?', token.strip())
+        if not match:
+            raise argparse.ArgumentTypeError('use KEY or HOLD(TAP), separated by commas')
+        outer, inner = match.groups()
+        hold, tap = (outer, inner) if inner else (None, outer)
+        if tap not in KEYS or hold is not None and hold not in KEYS:
+            raise argparse.ArgumentTypeError('unknown button in %r' % token.strip())
+        if hold == tap:
+            raise argparse.ArgumentTypeError('held and tapped buttons must differ')
+        steps.append((hold, tap))
+    return steps
+
+
+def key_args(args):
+    parser = argparse.ArgumentParser(
+        description='INPUT is KEY, HOLD(TAP), or a comma-separated list of either.',
+        allow_abbrev=False)
+    parser.add_argument('steps', type=key_sequence, metavar='INPUT')
+    parser.add_argument('--tap-ms', type=int, default=100)
+    parser.add_argument('--hold-ms', type=int, default=2000)
+    args = parser.parse_args(args)
+    if not 1 <= args.tap_ms <= 250 or not 1 <= args.hold_ms <= 2000:
+        parser.error('use tap 1..250 ms and hold 1..2000 ms')
+    return args
+
+
+def cmd_keys(diag, args):
+    with RemoteKeys(diag) as keys:
+        if any(tap not in MAPS[keys.product] or hold is not None and hold not in MAPS[keys.product]
+               for hold, tap in args.steps):
+            raise ValueError('the connected device does not have the requested button')
+        for hold, tap in args.steps:
+            if hold:
+                keys.press(hold, args.hold_ms)
+            keys.tap(tap, args.tap_ms)
+            if hold:
+                keys.release(hold)
+    print('key actions completed; synthetic keys released')
 
 
 def cmd_cfw(d, _args):
@@ -269,7 +445,7 @@ def selftest():
     print('selftest ok')
 
 
-COMMANDS = {'cfw': cmd_cfw, 'stats': cmd_stats, 'peek': cmd_peek, 'dump': cmd_dump}
+COMMANDS = {'cfw': cmd_cfw, 'stats': cmd_stats, 'peek': cmd_peek, 'dump': cmd_dump, 'keys': cmd_keys}
 
 
 def main(argv=None):
@@ -279,10 +455,14 @@ def main(argv=None):
         return
     if not argv or argv[0] not in COMMANDS:
         sys.exit(__doc__)
-    from winmidi import Port
+    args = key_args(argv[1:]) if argv[0] == 'keys' else argv[1:]
+    if sys.platform == 'win32':
+        from winmidi import Port
+    else:
+        from midimido import Port
     port = Port()
     try:
-        COMMANDS[argv[0]](Diag(port), argv[1:])
+        COMMANDS[argv[0]](Diag(port), args)
     finally:
         port.close()
 

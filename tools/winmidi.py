@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """A tiny SysEx client over the Windows MIDI API (winmm, through ctypes: no
-packages). Opens the Digitakt's USB MIDI ports, sends one SysEx message and
+packages). Opens the Digitakt or Digitone USB MIDI ports, sends one SysEx message and
 collects whatever SysEx comes back for a while."""
 import ctypes
 import time
@@ -45,20 +45,21 @@ class _OutCaps(ctypes.Structure):
                 ('dwSupport', wintypes.DWORD)]
 
 
-def find(name='Digitakt'):
+def find(name=None):
     ins = _names(winmm.midiInGetNumDevs, winmm.midiInGetDevCapsW, _InCaps)
     outs = _names(winmm.midiOutGetNumDevs, winmm.midiOutGetDevCapsW, _OutCaps)
-    i = [k for k, n in enumerate(ins) if name in n]
-    o = [k for k, n in enumerate(outs) if name in n]
-    if not i or not o:
-        raise OSError('no %s MIDI port (ports: %s). Is it connected over USB and '
+    names = (name.lower(),) if name else ('digitakt', 'digitone')
+    i = [k for k, n in enumerate(ins) if any(part in n.lower() for part in names)]
+    o = [k for k, n in enumerate(outs) if any(part in n.lower() for part in names)]
+    if len(i) != 1 or len(o) != 1:
+        raise OSError('expected one %s MIDI port pair (ports: %s). Is it connected over USB and '
                       'switched on, with USB CONFIG set to USB MIDI or Overbridge?'
-                      % (name, ', '.join(sorted(set(ins + outs))) or 'none'))
+                      % (name or 'Digitakt/Digitone', ', '.join(sorted(set(ins + outs))) or 'none'))
     return i[0], o[0]
 
 
 class Port:
-    def __init__(self, name='Digitakt', nbuf=16, size=65536):
+    def __init__(self, name=None, nbuf=16, size=65536):
         i, o = find(name)
         self.hin, self.hout = wintypes.HANDLE(), wintypes.HANDLE()
         r = winmm.midiInOpen(ctypes.byref(self.hin), i, 0, 0, CALLBACK_NULL)
