@@ -62,22 +62,21 @@ macOS/Linux (Mido + python-rtmidi). Close Elektron Transfer first on Windows,
 which lets one program at a time open a MIDI port. The client expects one
 Digitakt or Digitone MIDI input and output; it refuses ambiguous matches.
 
-On macOS, from a source checkout with mise and uv installed:
+On macOS and Linux, install the two packages first:
 
 ```bash
-mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py stats 10
+pip install mido python-rtmidi
 ```
 
-## Remote keys (source build)
+## Remote keys
 
-This branch supports all 48 Digitakt mk1 buttons on OS 1.53/1.54 and all
+digihealth 1.2 presses all 48 Digitakt mk1 buttons on OS 1.53/1.54 and all
 54 desktop Digitone mk1 buttons on OS 1.44, including encoder pushes.
 Shared names such as `YES`, `SETTINGS`, `1` and `LEVEL_PUSH` use a device-specific
 map. Device-only names such as `SRC`, `SYN1` and `T1` are refused on devices
 that lack them. See [the complete button map](docs/BUTTONS.md).
 
-Build and install the mod from this source before using it; the linked
-upstream releases do not contain this helper. Key protocol revision 2 is
+Releases before 1.2 answer the diagnostics only. Key protocol revision 2 is
 required; older clients/helpers refuse the capability mismatch before acting.
 Digitone OS 1.43 retains diagnostics only until its input bridge can be
 verified against that stock file. Digitone Keys extra controls are outside
@@ -86,7 +85,7 @@ this map; the helper refuses that panel variant.
 For example, on Digitakt hold FUNC while tapping SRC:
 
 ```bash
-mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py keys 'FUNC(SRC)'
+python tools/digiusb.py keys 'FUNC(SRC)'
 ```
 
 Use a bare name such as `keys YES` to tap alone. `--tap-ms` defaults to 100
@@ -102,7 +101,7 @@ through `H_PUSH`; rotations are outside the button helper.
 Run multiple steps in one session with a comma-separated input:
 
 ```bash
-mise exec python@3.12 -- uv run --with mido --with python-rtmidi python tools/digiusb.py keys 'FUNC(SRC),DOWN,DOWN,DOWN,YES'
+python tools/digiusb.py keys 'FUNC(SRC),DOWN,DOWN,DOWN,YES'
 ```
 
 Commas separate steps. A bare name taps that button; `FUNC(SRC)` holds FUNC,
@@ -255,12 +254,12 @@ them to elekloader's SDK.
 
 ## How it was checked
 
-For the source-build key helper, run the host checks without a MIDI device:
+For the key helper, run the host checks without a MIDI device:
 
 ```bash
-mise exec python@3.12 -- python tests/test_usb_keys.py
-mise exec python@3.12 -- python tests/test_all_keys.py
-mise exec python@3.12 -- python tools/digiusb.py selftest
+python tests/test_usb_keys.py
+python tests/test_all_keys.py
+python tools/digiusb.py selftest
 ```
 
 `tests/test_remote_keys.py` checks the input bridge, and
@@ -272,8 +271,9 @@ The full helper tests cover every mapped firmware key ID, cross-group
 ownership, machine-list/Sound Browser screens, unchanged diagnostic
 replies, USB/DIN source gating, physical ownership, malformed requests,
 lost action replies and deadline cleanup. The emulator calls the router hook
-and captures the stock sender; it does not model USB endpoints. Remote keys
-have not been tested on a physical device.
+and captures the stock sender; it does not model USB endpoints. On a
+Digitakt running OS 1.54, `keys 'FUNC(SRC),DOWN,DOWN,DOWN,YES'` worked, and
+a remote `keys YES` confirmed a firmware update (#6).
 
 The original performance and diagnostics checks below ran in digikit's emulator,
 which runs the stock OS and the
