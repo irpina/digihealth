@@ -1,7 +1,7 @@
 # digihealth
 
 A performance and diagnostics mod for the Digitakt (mk1), OS 1.53 and 1.54. It adds
-two rows to SETTINGS:
+three rows to SETTINGS:
 
 - **FAST AUDIO** (on by default) runs the audio render's hot code from the
   processor's free on-chip SRAM instead of DDR. It is the same code, so the
@@ -12,6 +12,10 @@ two rows to SETTINGS:
 - **SYSTEM INFO** shows CPU, DSP, RAM and free sample memory in the top bar.
   A read-only USB diagnostics channel lets `tools/digiusb.py` read the same
   figures, and more, from a computer.
+- **REMOTE KEYS** (on at every power-on; Digitakt only for now) lets `tools/digiusb.py keys` press
+  the panel's buttons over USB: see [Remote keys](#remote-keys). Off, the
+  unit refuses key commands and lets go of any key the computer holds;
+  the diagnostics still answer.
 
 On the **Digitone (mk1) and Digitone Keys**, OS 1.43 and 1.44, it is
 SYSTEM INFO alone (digihealth 1.1): see [The Digitone](#the-digitone).
@@ -76,7 +80,13 @@ Shared names such as `YES`, `SETTINGS`, `1` and `LEVEL_PUSH` use a device-specif
 map. Device-only names such as `SRC`, `SYN1` and `T1` are refused on devices
 that lack them. See [the complete button map](docs/BUTTONS.md).
 
-Releases before 1.2 answer the diagnostics only. Key protocol revision 2 is
+Releases before 1.2 answer the diagnostics only. The SETTINGS row REMOTE
+KEYS turns the commands off: the unit then answers them with status 6 and
+`digiusb.py` says so. The row is on at every power-on, for now: no core
+yet keeps a mod's setting across power-off. The Digitone has no row yet,
+so its keys are always on: with core-dn1 4.1, a second SETTINGS row (any
+row, even a second SYSTEM INFO) stalls the first boot at FACTORY PROJECT
+>> +DRIVE in digikit's emulator. Key protocol revision 2 is
 required; older clients/helpers refuse the capability mismatch before acting.
 Digitone OS 1.43 retains diagnostics only until its input bridge can be
 verified against that stock file. Digitone Keys extra controls are outside

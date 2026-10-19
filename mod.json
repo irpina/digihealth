@@ -2,7 +2,7 @@
  "id": "digihealth", "version": "1.2",
  "title": "digihealth", "category": "Performance", "author": "irpina",
  "license": "GPL-2.0-or-later",
- "description": "Two SETTINGS rows. FAST AUDIO (on by default) runs the audio render's hot code from the free on-chip SRAM: the same code, so the audio is identical and the DSP load lower; a watchdog goes back to the stock code if the copy is ever overwritten. SYSTEM INFO shows CPU, DSP, RAM and free sample memory in the top bar. The USB channel (SysEx device 0x7D) answers diagnostics and bounded button commands from tools/digiusb.py.",
+ "description": "Three SETTINGS rows. FAST AUDIO (on by default) runs the audio render's hot code from the free on-chip SRAM: the same code, so the audio is identical and the DSP load lower; a watchdog goes back to the stock code if the copy is ever overwritten. SYSTEM INFO shows CPU, DSP, RAM and free sample memory in the top bar. The USB channel (SysEx device 0x7D) answers diagnostics and, while REMOTE KEYS is on (it is at power-on), bounded button commands from tools/digiusb.py.",
  "device": "digitakt-mk1", "os": "1.53",
  "sources": ["fastaudio.s", "sysinfo.s", "core_candidate.c", "core_candidate.s", "remote_keys.c", "remote_keys.s"],
  "cflags": ["-DRK_OS_MINOR=53", "-DRK_PRODUCT=1"],
@@ -27,6 +27,7 @@
  "subscribe": [
   {"event": "ev_settings", "fn": "si_settings", "order": 10},
   {"event": "ev_settings", "fn": "fa_settings", "order": 20},
+  {"event": "ev_settings", "fn": "rk_settings", "order": 30},
   {"event": "ev_tick", "fn": "fa_tick", "order": 40},
   {"event": "ev_tick", "fn": "si_tick", "order": 50},
   {"event": "ev_tick", "fn": "rk_tick", "order": 60},

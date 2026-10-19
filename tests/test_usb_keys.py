@@ -96,6 +96,24 @@ class USBKeys(unittest.TestCase):
             self.assertEqual(self.lib.host_mask(), 0)
             self.assertTrue(port.closed)
 
+    def test_remote_keys_row_off_refuses_and_releases(self):
+        self.lib.host_off(1)
+        with self.assertRaisesRegex(ValueError, 'REMOTE KEYS'):
+            usb.RemoteKeys(self.diag)
+        self.lib.host_off(0)
+        keys = usb.RemoteKeys(self.diag)
+        keys.press('FUNC')
+        self.assertEqual(self.lib.host_mask(), 2)
+        self.lib.host_physical(1)
+        self.lib.host_off(1)
+        self.lib.host_advance(33)
+        self.assertEqual(self.lib.host_mask(), 1)
+        with self.assertRaisesRegex(ValueError, 'REMOTE KEYS'):
+            keys.tap('SRC')
+        self.lib.host_off(0)
+        self.assertEqual(keys.status(0)['state'], 'cancelled')
+        self.assertEqual(keys.status(0)['owned'], 0)
+
     def test_either_mapped_key_can_be_the_held_key(self):
         with usb.RemoteKeys(self.diag) as keys:
             keys.press('SRC')

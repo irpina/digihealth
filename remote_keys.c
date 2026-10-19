@@ -24,6 +24,9 @@ static const struct key_position { unsigned char ui, group, mask; } keymap[RK_KE
 extern volatile unsigned fw_panel_variant;
 #endif
 
+/* The REMOTE KEYS row (sysinfo.s): nonzero when the user turned it off. */
+extern volatile unsigned char rk_off;
+
 extern unsigned rk_now(void);
 extern unsigned core_keys_lock(void);
 extern void core_keys_unlock(unsigned sr);
@@ -118,6 +121,10 @@ int rk_receive(const unsigned char *packed, unsigned length, unsigned char *repl
         return 4;
     }
 #endif
+    if (rk_off) {
+        reply[3] = RK_OFF;
+        return 4;
+    }
     if (command == RK_CAPS) {
         put16(reply + 4, 2);
         reply[6] = RK_PRODUCT; reply[7] = 1; reply[8] = RK_OS_MINOR;
@@ -185,6 +192,9 @@ void rk_tick(void *ctrl)
     if ((held_key && now - held_start >= held_ticks) ||
         (state == RK_ACCEPTED && !tapping && now - started >= MAX_HOLD_MS * TICKS_PER_MS))
         cleanup = RK_EXPIRED;
+    /* Turned off: let go of what the session holds or is about to do. */
+    if (rk_off && !cleanup && (owned() || state == RK_ACCEPTED))
+        cleanup = RK_CANCELLED;
     if (cleanup) {
         for (group = 0; group < CORE_KEYS_GROUPS; ++group) {
             if (core_keys_set(group, 0) != CORE_KEYS_OK) break;

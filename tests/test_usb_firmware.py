@@ -188,7 +188,7 @@ class Firmware(unittest.TestCase):
 
             hello = usb.decode_hello(diag.call(usb.req_hello))
             self.assertEqual((hello['proto'], hello['name']),
-                             (1, 'digihealth 1.0' if product == 1 else 'digihealth 1.1'))
+                             (1, 'digihealth 1.2'))
             self.assertEqual(len(diag.call(usb.req_stats)), 96)
             expected = read(0x40000000, 16)
             self.assertEqual(usb.peek(diag, 0x40000000, 16), expected)
@@ -272,6 +272,22 @@ class Firmware(unittest.TestCase):
                 keys.tap('NO')
                 keys.tap('NO')
             checks.append('shared Settings/Yes/No names navigate through the native UI')
+
+            off = symbols['rk_off']
+            self.assertEqual(read(off, 1), bytes([0]), 'REMOTE KEYS is not on at power-on')
+            keys = usb.RemoteKeys(diag)
+            keys.press('FUNC')
+            self.assertEqual(held(), func_mask)
+            session.m.uc.mem_write(off, bytes([1]))
+            wait(80)
+            self.assertEqual(held(), 0, 'REMOTE KEYS off kept a synthetic hold')
+            with self.assertRaisesRegex(ValueError, 'REMOTE KEYS'):
+                usb.RemoteKeys(diag)
+            self.assertEqual(usb.decode_hello(diag.call(usb.req_hello))['proto'], 1)
+            self.assertEqual(len(diag.call(usb.req_stats)), 96)
+            session.m.uc.mem_write(off, bytes([0]))
+            self.assertEqual(keys.status(0)['state'], 'cancelled')
+            checks.append('REMOTE KEYS off refuses key commands, lets go of holds, keeps diagnostics')
 
             def word(addr):
                 return int.from_bytes(read(addr, 4), 'big')

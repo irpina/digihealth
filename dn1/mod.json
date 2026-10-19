@@ -145,7 +145,7 @@
      "order": 60
     }
    ],
-   "description": "A SETTINGS row, SYSTEM INFO: CPU load, main CPU render load and free RAM, plus USB diagnostics. On desktop Digitone mk1 OS 1.44 the same USB channel also supports bounded button commands through tools/digiusb.py. Digitone Keys retains diagnostics; its additional panel variant is refused by the button helper. FAST AUDIO is Digitakt only."
+   "description": "A SETTINGS row, SYSTEM INFO: CPU load, main CPU render load and free RAM, plus USB diagnostics. On desktop Digitone mk1 OS 1.44 the same USB channel also takes bounded button commands from tools/digiusb.py. The Digitone has no REMOTE KEYS row yet: a second SETTINGS row stalls its first boot with core-dn1 4.1. Digitone Keys retains diagnostics; its additional panel variant is refused by the button helper. FAST AUDIO is Digitakt only."
   }
  }
 }

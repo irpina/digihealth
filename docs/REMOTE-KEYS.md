@@ -4,7 +4,12 @@ Digitakt mk1 OS 1.53/1.54 and desktop Digitone mk1 OS 1.44. All messages use
 the existing DigiHealth USB-only SysEx channel; HELLO/STATS/PEEK and diagnostic
 revision 1 are unchanged.
 DIN source masks 8 and 16 are refused; USB source masks 2 and 4 are accepted.
-This is ownership and duplicate suppression, not authentication.
+This is ownership and duplicate suppression, not authentication. On the
+Digitakt, the SETTINGS row REMOTE KEYS (on at power-on) is the unit's own
+switch (the Digitone has no row yet; see the README): off,
+every key command, CAPABILITIES included, is answered with status 6 and no
+payload, and the next UI tick cancels the session, letting go of what it
+holds as CANCEL does. Diagnostics answer either way.
 
 ```
 request F0 00 20 3C 7D 00 <pack7: u16 sequence, u8 command, arguments> F7
@@ -41,7 +46,7 @@ A report is `u32 session, u32 operation, u8 state, u8 reason, u64 owned_keys,
 u8 cleanup_pending` (19 bytes, `>IIBBQB`). States: 0 none, 1 accepted, 2 completed,
 3 cancelled, 4 expired, 5 failed. Reasons and envelope statuses: 0 OK,
 1 invalid/refused, 2 unknown-command, 3 busy, 4 stale session/operation,
-5 physical overlap. Failed envelopes contain no payload. `owned_keys`
+5 physical overlap, 6 remote keys off. Failed envelopes contain no payload. `owned_keys`
 uses the logical capability mask. `cleanup_pending` is 0 or 1.
 
 Actions: 1 PRESS (1..2000 ms lease), 2 RELEASE (duration zero), 3 TAP

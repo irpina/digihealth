@@ -36,7 +36,8 @@ from keymap import KEYS, MAPS, SUPPORTED
 HEADER = bytes([0xF0, 0x00, 0x20, 0x3C, 0x7D, 0x00])
 HELLO, STATS, PEEK = 0x01, 0x02, 0x03
 STATUS = {0: 'ok', 1: 'refused', 2: 'unknown command', 3: 'busy',
-          4: 'stale session or operation', 5: 'physical overlap'}
+          4: 'stale session or operation', 5: 'physical overlap',
+          6: 'remote keys are off (SETTINGS > REMOTE KEYS)'}
 CAPS, OPEN, ACTION, KEY_STATUS, CANCEL = range(0x10, 0x15)
 PRESS, RELEASE, TAP = 1, 2, 3
 KEY_STATES = ('none', 'accepted', 'completed', 'cancelled', 'expired', 'failed')

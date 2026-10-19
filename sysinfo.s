@@ -106,6 +106,78 @@ item_draw:
         move.l  %d1, 16(%sp)
         clr.l   20(%sp)
         jmp     BLIT
+        .ifdef  RK_KEYS
+| ev_settings handler: the REMOTE KEYS row. It is on at power-on (rk_off is
+| .bss, so zero); off, remote_keys.c refuses key commands and lets go of
+| the keys it holds. Diagnostics answer either way. The Digitakt only for
+| now: on the Digitone 1.44 (core-dn1 4.1) a second SETTINGS row stalls
+| the first boot at FACTORY PROJECT >> +DRIVE, so dn1/mod.json does not
+| subscribe it and rk_off stays zero there.
+
+        .globl  rk_settings
+rk_settings:
+        pea     row_keys
+        move.l  8(%sp), -(%sp)          | the menu
+        jsr     core_additem
+        addq.l  #8, %sp
+        rts
+
+rk_label:
+        link    %a6, #-4
+        move.l  %d2, -(%sp)
+        pea     -1(%a6)
+        pea     str_keys
+        move.l  %a0, %d2
+        move.l  %a0, -(%sp)
+        jsr     STR_CTOR
+        lea     12(%sp), %sp
+        move.l  %d2, %d0
+        move.l  -8(%a6), %d2
+        unlk    %a6
+        rts
+
+rk_select:
+        movea.l 4(%sp), %a0
+        movea.l (%a0), %a0
+        moveq   #0, %d0
+        tst.b   rk_off
+        seq     %d0
+        andi.l  #1, %d0
+        move.b  %d0, rk_off
+        lea     0x38(%a0), %a0
+        move.l  %a0, 4(%sp)
+        jmp     INVALIDATE
+
+rk_change:                              | RIGHT on, LEFT off
+        movea.l 4(%sp), %a0
+        movea.l (%a0), %a0
+        move.l  12(%sp), %d0
+        beq.s   1f
+        sle     %d0
+        andi.l  #1, %d0
+        move.b  %d0, rk_off
+        lea     0x38(%a0), %a0
+        move.l  %a0, 4(%sp)
+        jmp     INVALIDATE
+1:      rts
+
+rk_draw:
+        moveq   #0x1c, %d0
+        tst.b   rk_off
+        beq.s   1f
+        moveq   #0, %d0
+1:      add.l   CHECKBOXES, %d0
+        move.l  12(%sp), %d1
+        move.l  %d1, 4(%sp)
+        move.l  %d0, 8(%sp)
+        move.l  16(%sp), %d1
+        move.l  %d1, 12(%sp)
+        move.l  20(%sp), %d1
+        move.l  %d1, 16(%sp)
+        clr.l   20(%sp)
+        jmp     BLIT
+        .endif
+
 | ev_render_in / ev_render_out handlers: render_in and render_out without the
 | instructions they replaced, which core now does (move.l #$7fffffff,d0 at
 | the entry; the movem restore at the exit).
@@ -720,6 +792,11 @@ peek_ranges: .long  0x40000000, 0x48000000     | DDR, cached
 row_info:   .long   item_label, item_select, item_draw, item_change
 diag_hdr:   .byte   0xF0, 0x00, 0x20, 0x3C, 0x7D, 0x00
 str_label:  .asciz  "SYSTEM INFO"
+        .ifdef  RK_KEYS
+        .balign 4
+row_keys:   .long   rk_label, rk_select, rk_draw, rk_change
+str_keys:   .asciz  "REMOTE KEYS"
+        .endif
 fmt_cpu:    .asciz  "CPU %d%%  DSP %d%%/%d%%"
         .ifdef  SMPFREE
 fmt_ram:    .asciz  "RAM %d.%dM  SMP %d.%dM"
@@ -732,6 +809,10 @@ fmt_na:     .asciz  "CPU --  DSP --"
         .section .bss
         .balign 4
 enabled:    .skip 4             | the toggle (byte 0), off at power-on
+        .ifdef  RK_KEYS
+        .globl  rk_off
+rk_off:     .skip 4             | REMOTE KEYS off (byte 0): 0, on, at power-on
+        .endif
 ticks:      .skip 4
 secs:       .skip 4
 page:       .skip 4

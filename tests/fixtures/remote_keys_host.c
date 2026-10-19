@@ -5,6 +5,7 @@
 volatile unsigned char fw_key_state[7];
 volatile unsigned fw_ui_queue[8];
 volatile unsigned fw_panel_variant;
+volatile unsigned char rk_off;
 static unsigned clock_ticks, depth, calls;
 static unsigned fill_after_group;
 
@@ -44,6 +45,7 @@ void host_reset(void)
     session = operation = action = key = duration = state = reason = 0;
     memset(masks, 0, sizeof(masks));
     fw_panel_variant = 0;
+    rk_off = 0;
     held_key = held_start = held_ticks = tap_start = 0;
     started = tapping = cleanup = closed = 0;
 }
@@ -57,3 +59,4 @@ void host_physical_group(unsigned group, unsigned mask) { core_panel_buttons(gro
 unsigned host_group(unsigned group) { return fw_key_state[group]; }
 void host_variant(unsigned flags) { fw_panel_variant = flags; }
 void host_fill_after(unsigned group) { fill_after_group = group; }
+void host_off(unsigned off) { rk_off = off; }
