@@ -90,6 +90,13 @@ class Port:
             time.sleep(0.001)
         winmm.midiOutUnprepareHeader(self.hout, ctypes.byref(h), ctypes.sizeof(h))
 
+    def send_short(self, *data):
+        """A channel message (note, CC): up to three bytes."""
+        word = sum(b << (8 * k) for k, b in enumerate(data))
+        r = winmm.midiOutShortMsg(self.hout, wintypes.DWORD(word))
+        if r:
+            raise OSError('midiOutShortMsg failed: %d' % r)
+
     def receive(self, seconds=1.0, until=None):
         """-> list of SysEx messages received within `seconds` (stops early
         once `until(msgs)` is true)."""

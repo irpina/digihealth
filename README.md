@@ -146,6 +146,32 @@ stall longer than the counter's roughly 32-second wrap can delay it further.
 Completion means the stock driver accepted the transition, not that a menu
 opened. See [the protocol reference](docs/REMOTE-KEYS.md).
 
+## Test runner
+
+`tools/digirun.py` drives a unit over one USB MIDI port for scripted checks:
+digihealth's keys (and encoder turns, where the build has them), screenshots,
+notes and CCs, and the data store, in one session, so a step can look at the
+screen while a key is held. Screenshots and the data store use Elektron's own
+RPC (`tools/elkrpc.py`, the channel Transfer uses), so they work on a stock OS
+too.
+
+```bash
+python tools/digirun.py info                          # Digitone (product id 0x14), OS 1.44
+python tools/digirun.py shot screen.png               # the screen now, 4x
+python tools/digirun.py do 'hold FUNC; shot held.png; release FUNC'
+python tools/digirun.py run steps.txt --out run1      # steps from a file
+python tools/digirun.py data ls /                     # the data store's roots
+```
+
+Steps: `tap`, `hold`, `release`, `keys SEQ` (as `digiusb.py keys`), `turn`,
+`shot FILE` (.png or the raw .bin framebuffer), `expect-screen NAME [S]`
+(compare with a saved .bin, saving the screen and a diff on a mismatch), `cc`,
+`nrpn`, `note`, `wait`, `stats`, `dump ADDR LEN FILE` and `say`; `python
+tools/digirun.py --help` lists their arguments. Writing to the data store is
+left out on purpose. On the Digitone, give a turn back a pause (`wait 3`)
+after a turn: one sent straight after was sometimes not taken. With both units connected, `--port Digitone` (before the
+command) picks one.
+
 ## The Digitone
 
 digihealth 1.1 is SYSTEM INFO for the Digitone mk1 and Digitone Keys, OS
