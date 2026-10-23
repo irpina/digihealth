@@ -7,7 +7,8 @@ The canonical source is `keys.def`; `tools/keymap.py` reads the same table.
 Digitakt OS 1.53/1.54 and Digitone OS 1.44 are supported. Digitone 1.43 keeps
 diagnostics only; its key bridge is not enabled without stock-file verification.
 Digitone Keys additional controls, knob rotation, master volume and power
-are outside this button map.
+are outside this button map; knob rotation on the Digitone is TURN, by
+encoder number (A-H 1-8, LEVEL 9), not a button (see the README's Encoder turns).
 
 | Name | Logical/USB ID | Digitakt UI ID | Digitakt group:bit | Digitone UI ID | Digitone group:bit |
 |---|---:|---:|---|---:|---|

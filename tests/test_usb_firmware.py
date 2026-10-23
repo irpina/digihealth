@@ -183,7 +183,7 @@ class Firmware(unittest.TestCase):
                 self.assertFalse(received, 'non-USB request accepted')
             for source in (2, 4):
                 inject(usb.req_caps(1), source)
-                self.assertEqual(len(usb.parse(received.pop())['payload']), 19)
+                self.assertEqual(len(usb.parse(received.pop())['payload']), 20)
             checks.append('compiled router hook preserves ABI, accepts USB 2/4 and refuses DIN 8/16')
 
             hello = usb.decode_hello(diag.call(usb.req_hello))
@@ -304,6 +304,24 @@ class Firmware(unittest.TestCase):
                     self.assertEqual(read(symbols['fw_key_state'] + group, 1)[0] & mask, 0, name)
             self.assertEqual(read(symbols['fw_key_state'], 7), bytes(7))
             checks.append('all %d buttons emit their mapped firmware key IDs through the native driver/core' % len(mapping))
+
+            if 'fw_encoder' in symbols:
+                turns = []
+                session.at(symbols['fw_encoder'], lambda uc, addr, size, data: turns.append(
+                    struct.unpack('>Ii', read(uc.reg_read(UC_M68K_REG_A7) + 4, 8))))
+                wait(200)
+                start = session.frames[-1][1]
+                with usb.RemoteKeys(diag) as keys:
+                    self.assertEqual(len(keys.encoders), 9)
+                    keys.turn('A', 40, step=4)
+                    wait(300)
+                    turned = session.frames[-1][1]
+                    panel.write_png(turned, str(out / 'turn-a.png'), scale=4)
+                    keys.turn('LEVEL', -3)
+                    wait(300)
+                self.assertEqual(turns, [(0, 4)] * 10 + [(8, -1)] * 3)
+                self.assertNotEqual(turned, start, 'a remote turn of encoder A changed nothing on screen')
+                checks.append('TURN reaches the OS encoder input one message a UI tick, and moves a parameter')
 
             self.assertEqual(ui.errors, 0)
             self.assertEqual(ui.missing, [])

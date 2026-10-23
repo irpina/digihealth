@@ -423,6 +423,121 @@ class USBKeys(unittest.TestCase):
             self.assertEqual(len(self.port.sent), expected)
             self.port.messages.clear()
 
+    def test_no_encoder_input_reports_none_and_refuses_turn(self):
+        caps = self.diag.call(usb.req_caps)
+        self.assertEqual((len(caps), caps[19]), (20, 0))
+        self.wire(usb.OPEN, struct.pack('>I', 7))
+        self.assertEqual(self.wire(usb.ACTION, struct.pack('>IIBBH', 7, 1, usb.TURN, 1, 0x0101))
+                         ['status'], 1)
+        with usb.RemoteKeys(self.diag) as keys:
+            self.assertEqual(keys.encoders, {})
+            with self.assertRaisesRegex(ValueError, 'unsupported encoder'):
+                keys.turn('A', 1)
+
+    def test_revision_2_caps_still_accepted(self):
+        caps = struct.pack('>HBBBQHHH', 2, 1, 1, 53, usb.SUPPORTED[1], 100, 250, 2000)
+
+        def call(builder, *args, **kwargs):
+            if builder == usb.req_caps:
+                return caps
+            return self.diag.call(builder, *args, **kwargs)
+        keys = usb.RemoteKeys(types.SimpleNamespace(call=call))
+        self.assertEqual(keys.encoders, {})
+        keys.cancel()
+
+
+class USBTurns(unittest.TestCase):
+    """TURN on a build with the encoder input: the Digitone mk1 OS 1.44 port's flags."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        library = str(Path(cls.tmp.name) / 'turns.so')
+        subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
+                        '-DRK_PRODUCT=2', '-DRK_OS_MINOR=44', '-DRK_ENCODERS=9',
+                        str(ROOT / 'tests/fixtures/remote_keys_host.c'), '-o', library], check=True)
+        cls.lib = ctypes.CDLL(library)
+        cls.lib.rk_receive.argtypes = (ctypes.c_char_p, ctypes.c_uint, ctypes.c_void_p)
+
+    def setUp(self):
+        self.lib.host_reset()
+        self.port = HostPort(self.lib)
+        self.diag = usb.Diag(self.port)
+
+    def wire(self, command, payload=b''):
+        self.port.send(usb.request(0xfedc, command, payload))
+        return usb.parse(self.port.messages.pop())
+
+    def test_caps_report_revision_3_and_nine_encoders(self):
+        caps = self.diag.call(usb.req_caps)
+        self.assertEqual(len(caps), 20)
+        self.assertEqual(struct.unpack_from('>HBBB', caps), (3, 2, 1, 44))
+        self.assertEqual(caps[19], 9)
+        with usb.RemoteKeys(self.diag) as keys:
+            self.assertEqual(sorted(keys.encoders.values()), list(range(1, 10)))
+            self.assertEqual(keys.encoders['LEVEL'], 9)
+
+    def test_turn_sends_one_message_a_tick(self):
+        with usb.RemoteKeys(self.diag) as keys:
+            keys.turn('E', -12)
+        self.assertEqual(self.lib.host_turned(4), -12)
+        self.assertEqual(self.lib.host_turn_calls(), 12)
+        self.assertEqual(sum(self.lib.host_turned(i) for i in range(9)), -12)
+
+    def test_turn_steps_and_long_turns_split(self):
+        with usb.RemoteKeys(self.diag) as keys:
+            keys.turn('A', 12, step=5)
+            keys.turn('LEVEL', 70)
+        actions = [struct.unpack('>IIBBH', raw[3:]) for raw in self.port.sent if raw[2] == usb.ACTION]
+        self.assertEqual([(a, k, ms) for _, _, a, k, ms in actions], [
+            (usb.TURN, 1, 5 << 8 | 2), (usb.TURN, 1, 2 << 8 | 1),
+            (usb.TURN, 9, 1 << 8 | 30), (usb.TURN, 9, 1 << 8 | 30), (usb.TURN, 9, 1 << 8 | 10)])
+        self.assertEqual((self.lib.host_turned(0), self.lib.host_turned(8)), (12, 70))
+
+    def test_turn_with_a_held_key(self):
+        port = self.port
+        with patch.dict(sys.modules, midimido=types.SimpleNamespace(Port=lambda: port)), \
+                patch.object(usb.sys, 'platform', 'darwin'), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            usb.main(['turn', 'b', '3', '--hold', 'FUNC'])
+        self.assertIn('turn completed', output.getvalue())
+        actions = [raw[11] for raw in port.sent if raw[2] == usb.ACTION]
+        self.assertEqual(actions, [usb.PRESS, usb.TURN, usb.RELEASE])
+        self.assertEqual(self.lib.host_turned(1), 3)
+        self.assertEqual(self.lib.host_mask(), 0)
+
+    def test_full_ui_queue_delays_a_turn_and_never_drops_it(self):
+        self.wire(usb.OPEN, struct.pack('>I', 7))
+        self.lib.host_busy(1)
+        self.assertEqual(self.wire(usb.ACTION, struct.pack('>IIBBH', 7, 1, usb.TURN, 3, 2 << 8 | 2))
+                         ['status'], 0)
+        self.lib.host_advance(1)
+        self.assertEqual(self.lib.host_turn_calls(), 0)
+        self.lib.host_busy(0)
+        self.lib.host_advance(1)
+        self.lib.host_advance(1)
+        self.assertEqual(self.lib.host_turned(2), 4)
+        self.assertEqual(self.wire(usb.KEY_STATUS, struct.pack('>II', 7, 1))['payload'][8], 2)
+
+    def test_strict_turn_arguments(self):
+        self.wire(usb.OPEN, struct.pack('>I', 7))
+        for k, ms in ((0, 0x0101), (10, 0x0101), (1, 0x0100), (1, 0x011f), (1, 0x0001),
+                      (1, 0x1f01), (1, 0xe101)):
+            self.assertEqual(self.wire(usb.ACTION, struct.pack('>IIBBH', 7, 1, usb.TURN, k, ms))
+                             ['status'], 1, (k, hex(ms)))
+        self.assertEqual(self.wire(usb.ACTION, struct.pack('>IIBBH', 7, 1, usb.TURN, 1, 0xe201))
+                         ['status'], 0)
+        self.lib.host_advance(1)
+        self.assertEqual(self.lib.host_turned(0), -30)
+
+    def test_client_refuses_bad_turns_before_sending(self):
+        with usb.RemoteKeys(self.diag) as keys:
+            for args in (('Z', 1), ('A', 0), ('A', 1, 0), ('A', 1, 31)):
+                with self.assertRaises(ValueError):
+                    keys.turn(*args)
+        self.assertFalse(any(raw[2] == usb.ACTION for raw in self.port.sent))
+
 
 class MidiTransport(unittest.TestCase):
     def test_digitone_mido_port_names(self):

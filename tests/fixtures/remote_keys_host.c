@@ -22,6 +22,14 @@ void core_stock_buttons(unsigned group, unsigned mask)
     }
 }
 unsigned rk_now(void) { return clock_ticks; }
+static int turned[9];
+static unsigned turn_calls;
+void fw_encoder(unsigned encoder, int delta)
+{
+    assert(depth && encoder < 9);
+    ++turn_calls;
+    turned[encoder] += delta;
+}
 
 #ifndef RK_OS_MINOR
 #define RK_OS_MINOR 53
@@ -47,7 +55,9 @@ void host_reset(void)
     fw_panel_variant = 0;
     rk_off = 0;
     held_key = held_start = held_ticks = tap_start = 0;
-    started = tapping = cleanup = closed = 0;
+    started = tapping = cleanup = closed = turns_left = 0;
+    memset(turned, 0, sizeof(turned));
+    turn_calls = 0;
 }
 void host_advance(unsigned ms) { clock_ticks += ms * TICKS_PER_MS; rk_tick(0); }
 void host_clock(unsigned ticks) { clock_ticks = ticks; }
@@ -60,3 +70,5 @@ unsigned host_group(unsigned group) { return fw_key_state[group]; }
 void host_variant(unsigned flags) { fw_panel_variant = flags; }
 void host_fill_after(unsigned group) { fill_after_group = group; }
 void host_off(unsigned off) { rk_off = off; }
+int host_turned(unsigned encoder) { return turned[encoder]; }
+unsigned host_turn_calls(void) { return turn_calls; }

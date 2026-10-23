@@ -9,5 +9,6 @@ enum { CORE_KEYS_OK, CORE_KEYS_INVALID, CORE_KEYS_BUSY, CORE_KEYS_OVERLAP };
 int core_keys_set(unsigned group, unsigned mask);
 int core_keys_clear(void);
 void core_panel_buttons(unsigned group, unsigned physical_mask);
+int core_encoder_turn(unsigned encoder, int delta);
 
 #endif

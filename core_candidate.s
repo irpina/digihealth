@@ -7,6 +7,10 @@
         .ifndef KEY_STACK
         .equ KEY_STACK, 68
         .endif
+        .ifdef ENC_INPUT
+        .globl fw_encoder
+        .set fw_encoder, ENC_INPUT
+        .endif
         .ifdef KEY_VARIANT
         .globl fw_panel_variant
         .set fw_panel_variant, KEY_VARIANT

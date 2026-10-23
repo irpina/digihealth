@@ -6,6 +6,9 @@ extern volatile unsigned fw_ui_queue[];
 extern unsigned core_keys_lock(void);
 extern void core_keys_unlock(unsigned saved_sr);
 extern void core_stock_buttons(unsigned group, unsigned mask);
+#ifndef RK_ENCODERS
+#define RK_ENCODERS 0
+#endif
 
 static unsigned char physical[CORE_KEYS_GROUPS], synthetic[CORE_KEYS_GROUPS];
 static unsigned initialized;
@@ -60,6 +63,37 @@ int core_keys_set(unsigned group, unsigned mask)
         synthetic[group] = mask;
     core_keys_unlock(sr);
     return result;
+}
+
+#if RK_ENCODERS
+/* The panel's encoder input (core_candidate.s): one turn message, encoder
+ * 0-7 = A-H, 8 = LEVEL, delta in counts as the panel sends them. */
+extern void fw_encoder(unsigned encoder, int delta);
+#endif
+
+/* One encoder turn, as if the panel had sent it: the OS adds it to that
+ * encoder's count and turns the counts into UI events itself. Refused while
+ * the UI's event queue is as full as core_keys_set refuses it. */
+int core_encoder_turn(unsigned encoder, int delta)
+{
+#if RK_ENCODERS
+    unsigned sr, count, capacity;
+    int result = CORE_KEYS_OK;
+    if (encoder >= RK_ENCODERS || delta == 0 || delta < -127 || delta > 127)
+        return CORE_KEYS_INVALID;
+    sr = core_keys_lock();
+    count = fw_ui_queue[1];
+    capacity = fw_ui_queue[4] + 1;
+    if (capacity < 16 || count > capacity - 16 || count > 112)
+        result = CORE_KEYS_BUSY;
+    else
+        fw_encoder(encoder, delta);
+    core_keys_unlock(sr);
+    return result;
+#else
+    (void)encoder; (void)delta;
+    return CORE_KEYS_INVALID;
+#endif
 }
 
 int core_keys_clear(void)

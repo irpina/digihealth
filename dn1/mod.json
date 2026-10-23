@@ -80,7 +80,8 @@
     "KEY_STATE": "0x41973dd0",
     "UI_QUEUE": "0x4052b6bc",
     "KEY_CLOCK": "0xfc07000c",
-    "KEY_VARIANT": "0x402296f0"
+    "KEY_VARIANT": "0x402296f0",
+    "ENC_INPUT": "0x400e8fc6"
    },
    "sites": [
     {
@@ -111,7 +112,8 @@
    ],
    "cflags": [
     "-DRK_OS_MINOR=44",
-    "-DRK_PRODUCT=2"
+    "-DRK_PRODUCT=2",
+    "-DRK_ENCODERS=9"
    ],
    "subscribe": [
     {
@@ -145,7 +147,7 @@
      "order": 60
     }
    ],
-   "description": "A SETTINGS row, SYSTEM INFO: CPU load, main CPU render load and free RAM, plus USB diagnostics. On desktop Digitone mk1 OS 1.44 the same USB channel also takes bounded button commands from tools/digiusb.py. The Digitone has no REMOTE KEYS row yet: a second SETTINGS row stalls its first boot with core-dn1 4.1. Digitone Keys retains diagnostics; its additional panel variant is refused by the button helper. FAST AUDIO is Digitakt only."
+   "description": "A SETTINGS row, SYSTEM INFO: CPU load, main CPU render load and free RAM, plus USB diagnostics. On desktop Digitone mk1 OS 1.44 the same USB channel also takes bounded button and encoder commands from tools/digiusb.py. The Digitone has no REMOTE KEYS row yet: a second SETTINGS row stalls its first boot with core-dn1 4.1. Digitone Keys retains diagnostics; its additional panel variant is refused by the button helper. FAST AUDIO is Digitakt only."
   }
  }
 }

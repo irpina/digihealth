@@ -86,8 +86,9 @@ KEYS turns the commands off: the unit then answers them with status 6 and
 yet keeps a mod's setting across power-off. The Digitone has no row yet,
 so its keys are always on: with core-dn1 4.1, a second SETTINGS row (any
 row, even a second SYSTEM INFO) stalls the first boot at FACTORY PROJECT
->> +DRIVE in digikit's emulator. Key protocol revision 2 is
-required; older clients/helpers refuse the capability mismatch before acting.
+>> +DRIVE in digikit's emulator. Key protocol revision 3 (revision 2 with
+encoder turns) is current; this client also drives a revision-2 helper's
+buttons, and older clients/helpers refuse the capability mismatch before acting.
 Digitone OS 1.43 retains diagnostics only until its input bridge can be
 verified against that stock file. Digitone Keys extra controls are outside
 this map; the helper refuses that panel variant.
@@ -106,7 +107,7 @@ Firmware knows individual keys; the computer composes the gesture. A hold
 and tap may span different panel groups. To tap Settings on either device,
 use `keys SETTINGS`; `keys 'FUNC(LEVEL_PUSH)'` opens its Sound Browser.
 Numbered keys use the strings `1` through `16`. Encoder pushes use `A_PUSH`
-through `H_PUSH`; rotations are outside the button helper.
+through `H_PUSH`; for rotations, see [Encoder turns](#encoder-turns).
 
 Run multiple steps in one session with a comma-separated input:
 
@@ -145,6 +146,26 @@ deadlines are serviced by the UI task, so a stalled UI delays cleanup. A UI
 stall longer than the counter's roughly 32-second wrap can delay it further.
 Completion means the stock driver accepted the transition, not that a menu
 opened. See [the protocol reference](docs/REMOTE-KEYS.md).
+
+### Encoder turns
+
+On the desktop Digitone mk1 OS 1.44, `turn` turns encoders A-H and LEVEL as
+the panel does: the firmware hands the OS's encoder input one turn of
+`--step` counts a UI tick, so the OS's own acceleration applies. The Digitakt
+has no turns yet (its capabilities report no encoders).
+
+```bash
+python tools/digiusb.py turn A 8               # encoder A, 8 counts right
+python tools/digiusb.py turn LEVEL -4          # LEVEL, 4 counts left
+python tools/digiusb.py turn C 24 --step 4     # faster: 4 counts a tick
+python tools/digiusb.py turn A 2 --hold FUNC   # hold FUNC through the turn
+```
+
+A count is one wire unit of the panel's encoder messages, not a detent, and
+small turns need not move a parameter: the OS waits for a few counts before
+it steps, as it does for the panel's. With `--hold` the whole turn has to fit
+one action (30 ticks). From Python, `keys.turn('A', 8, step=1)` inside a
+`RemoteKeys` session.
 
 ## The Digitone
 
